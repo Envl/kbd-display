@@ -32,7 +32,7 @@ final class BoardView: NSView {
 
     var effects = EffectConfiguration() {
         didSet {
-            if !effects[.border] || !effects.borderReleaseDelay { releasedOutlines.removeAll() }
+            if !effects[.border] { releasedOutlines.removeAll() }
             if !morphsKeyOutlines {
                 lastOutline = nil
                 tappedOutline = nil
@@ -83,6 +83,16 @@ final class BoardView: NSView {
         let startTime: TimeInterval
         let from: CGRect?
         let target: CGRect
+        let initialOpacity: Double
+
+        func opacity(at now: TimeInterval) -> Double {
+            initialOpacity + (1 - initialOpacity) * BlastEffect.outlineRamp(now - startTime, over: BlastEffect.outlineFadeIn)
+        }
+
+        func tapOpacity(at now: TimeInterval) -> Double {
+            let remaining = startTime + Self.tapDuration - now
+            return opacity(at: now) * BlastEffect.outlineRamp(remaining, over: BlastEffect.outlineFadeOut)
+        }
 
         func frame(at now: TimeInterval) -> CGRect {
             guard let from, now - startTime < Self.morphDuration else { return target }
@@ -104,7 +114,15 @@ final class BoardView: NSView {
 
     private struct ReleasedOutline {
         let outline: KeyOutline
-        let expiresAt: TimeInterval
+        let releasedAt: TimeInterval
+
+        func remaining(at now: TimeInterval, delay: TimeInterval) -> TimeInterval {
+            releasedAt + delay + BlastEffect.outlineFadeOut - now
+        }
+
+        func opacity(at now: TimeInterval, delay: TimeInterval) -> Double {
+            outline.opacity(at: now) * BlastEffect.outlineRamp(remaining(at: now, delay: delay), over: BlastEffect.outlineFadeOut)
+        }
     }
 
     private(set) var hits: [Hit] = []
@@ -217,11 +235,14 @@ final class BoardView: NSView {
         needsDisplay = true
     }
 
+    private var outlineReleaseDelay: TimeInterval {
+        effects.borderReleaseDelay ? effects[.borderReleaseDuration] : 0
+    }
+
     func releaseKey(_ code: UInt16, at now: TimeInterval = ProcessInfo.processInfo.systemUptime) {
         guard let held = heldKeys.removeValue(forKey: code) else { return }
-        if effects[.border] && effects.borderReleaseDelay {
-            releasedOutlines[code] = ReleasedOutline(outline: held.outline,
-                                                      expiresAt: now + effects[.borderReleaseDuration])
+        if effects[.border] {
+            releasedOutlines[code] = ReleasedOutline(outline: held.outline, releasedAt: now)
             ensureAnimationRunning()
         }
         needsDisplay = true
@@ -253,7 +274,12 @@ final class BoardView: NSView {
             outline = tap
         } else {
             let from = lastOutline?.frame(at: now)
-            outline = KeyOutline(code: code, startTime: now, from: from, target: frame)
+            let previousCode = lastOutline?.code ?? code
+            let previousOpacity = releasedOutlines[previousCode]?.opacity(at: now, delay: outlineReleaseDelay)
+                ?? heldKeys[previousCode]?.outline.opacity(at: now)
+                ?? tappedOutline?.tapOpacity(at: now)
+                ?? 0
+            outline = KeyOutline(code: code, startTime: now, from: from, target: frame, initialOpacity: previousOpacity)
             if morphsKeyOutlines {
                 // Move the last outline. Keys that are still held keep their own outlines.
                 if let lastOutline { releasedOutlines.removeValue(forKey: lastOutline.code) }
@@ -319,7 +345,7 @@ final class BoardView: NSView {
         if effects.fireworks {
             fireworks.launch(from: center, keyCode: code, at: now, strength: strength)
         }
-        if effects.musicAmbient {
+        if effects.musicAmbient && relayedBeam == nil {
             MusicAmbientController.shared.injectKeyImpulse(at: center, strength: 1.0 + 0.4 * beam.flameHeat)
         }
         needsDisplay = true
@@ -334,7 +360,7 @@ final class BoardView: NSView {
             let now = ProcessInfo.processInfo.systemUptime
             self.hits.removeAll { now - $0.startTime >= self.duration }
             if !self.releasedOutlines.isEmpty {
-                self.releasedOutlines = self.releasedOutlines.filter { now < $0.value.expiresAt }
+                self.releasedOutlines = self.releasedOutlines.filter { $0.value.remaining(at: now, delay: self.outlineReleaseDelay) > 0 }
             }
             if let tap = self.tappedOutline, now - tap.startTime >= KeyOutline.tapDuration {
                 self.tappedOutline = nil
@@ -440,19 +466,20 @@ final class BoardView: NSView {
         guard effects[.border] else { return }
         let brightness = effects[.borderBrightness]
         let morph = morphsKeyOutlines
-        func drawOutline(_ outline: KeyOutline) {
+        func drawOutline(_ outline: KeyOutline, opacity: Double) {
+            guard opacity > 0 else { return }
             let frame = morph ? outline.frame(at: now) : outline.target
             BlastEffect.drawHeldKeyOutline(in: cg, key: frame, age: now - outline.startTime,
-                                           brightness: brightness, colors: colors)
+                                           brightness: brightness * opacity, colors: colors)
         }
         for held in heldKeys.values {
-            drawOutline(held.outline)
+            drawOutline(held.outline, opacity: held.outline.opacity(at: now))
         }
-        for released in releasedOutlines.values where now < released.expiresAt {
-            drawOutline(released.outline)
+        for released in releasedOutlines.values {
+            drawOutline(released.outline, opacity: released.opacity(at: now, delay: outlineReleaseDelay))
         }
         if let tap = tappedOutline, now - tap.startTime < KeyOutline.tapDuration {
-            drawOutline(tap)
+            drawOutline(tap, opacity: tap.tapOpacity(at: now))
         }
     }
 

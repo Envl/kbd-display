@@ -78,6 +78,13 @@ struct BeamSpark {
 final class BlastEffect {
     static let shared = BlastEffect()
     static let duration: TimeInterval = 0.80
+    static let outlineFadeIn: TimeInterval = 0.06
+    static let outlineFadeOut: TimeInterval = 0.18
+
+    static func outlineRamp(_ elapsed: TimeInterval, over duration: TimeInterval) -> Double {
+        let t = min(1, max(0, elapsed / duration))
+        return t * t * (3 - 2 * t)
+    }
     private static let frameCount = 49
     private static let sweepFraction = 1.1 / 1.7
     private var frames: [CGImage] = []
@@ -299,7 +306,7 @@ final class BlastEffect {
 
     static func drawHeldKeyOutline(in context: CGContext, key: CGRect, age: Double, brightness: Double,
                                    colors: EffectColorParams) {
-        let pulse = pow(max(0, 1 - max(0, age) / 0.22), 2)
+        let pulse = outlineRamp(age, over: outlineFadeIn) * pow(max(0, 1 - max(0, age) / 0.22), 2)
         let stroke = colors.apply(to: NSColor(srgbRed: 0.86, green: 0.91, blue: 1, alpha: 1))
         let halo = colors.apply(to: NSColor(srgbRed: 0.42, green: 0.68, blue: 1, alpha: 0.80))
         let path = CGPath(roundedRect: key.insetBy(dx: 7, dy: 7), cornerWidth: 12, cornerHeight: 12, transform: nil)
@@ -320,7 +327,7 @@ final class BlastEffect {
         guard age >= 0, age < 0.62 else { return }
         let contact = pow(max(0, 1 - age / 0.34), 2)
         let arrival = 0.6 * pow(max(0, 1 - abs(age - 0.32) / 0.23), 2)
-        let light = max(contact, arrival)
+        let light = outlineRamp(age, over: outlineFadeIn) * max(contact, arrival)
         let inset = 5 + 3 * contact
         let cap = CGPath(roundedRect: key.insetBy(dx: inset, dy: inset), cornerWidth: 12, cornerHeight: 12, transform: nil)
         let shadowColor = colors.apply(to: NSColor(srgbRed: 0.64, green: 0.76, blue: 1, alpha: 0.9))
@@ -340,7 +347,7 @@ final class BlastEffect {
         guard age >= 0, age < 0.66 else { return }
         let contact = pow(max(0, 1 - age / 0.35), 2)
         let arrival = 0.75 * pow(max(0, 1 - abs(age - 0.32) / 0.24), 2)
-        let light = max(contact, arrival) * brightness
+        let light = outlineRamp(age, over: outlineFadeIn) * max(contact, arrival) * brightness
         let inset = 5 + 2.5 * contact
         let capRect = key.insetBy(dx: inset, dy: inset)
         let cap = CGPath(roundedRect: capRect, cornerWidth: 12, cornerHeight: 12, transform: nil)

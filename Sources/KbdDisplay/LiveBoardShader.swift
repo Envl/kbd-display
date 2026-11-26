@@ -443,7 +443,7 @@ final class LiveBoardShader {
                 if ((hit.flags & 8u) != 0u && hit.age < 0.66) {
                     float contact = pow(max(0.0, 1.0 - hit.age / 0.35), 2.0);
                     float arrival = 0.75 * pow(max(0.0, 1.0 - abs(hit.age - 0.33) / 0.24), 2.0);
-                    float light = max(contact, arrival) * borderBrightness;
+                    float light = smoothstep(0.0f, \(BlastEffect.outlineFadeIn)f, hit.age) * max(contact, arrival) * borderBrightness;
                     if (abs(dTargetKey) < 15.0 && light > 0.005) {
                         float rim = exp(-0.42 * dTargetKey * dTargetKey);
                         float halo = 0.48 * exp(-0.045 * dTargetKey * dTargetKey) * step(-5.5, dTargetKey);

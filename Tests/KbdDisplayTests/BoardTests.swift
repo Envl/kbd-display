@@ -493,14 +493,17 @@ final class BoardTests: XCTestCase {
             return try XCTUnwrap(rep.colorAt(x: x, y: 60)).alphaComponent
         }
         XCTAssertEqual(try alpha(0, x: 165), 0)
-        XCTAssertGreaterThan(try alpha(0, x: 24), 0.6)
-        XCTAssertGreaterThan(try alpha(0, x: 20), 0)
-        XCTAssertGreaterThan(try alpha(0, x: 307), 0.5)
+        XCTAssertEqual(try alpha(0, x: 24), 0)
+        let entering = try alpha(0.02, x: 24)
+        XCTAssertGreaterThan(entering, 0)
+        XCTAssertGreaterThan(try alpha(0.06, x: 24), entering)
+        XCTAssertGreaterThan(try alpha(0.06, x: 20), 0)
+        XCTAssertGreaterThan(try alpha(0.06, x: 307), 0.15)
         XCTAssertEqual(try alpha(0.64, x: 24), 0)
     }
 
     @MainActor
-    func testHeldKeyOutlineFlashesSettlesAndClearsOnRelease() throws {
+    func testHeldKeyOutlineStaysLitAndFadesOnRelease() throws {
         _ = NSApplication.shared
         let board = BoardView(frame: CGRect(origin: .zero, size: Action75.canvas))
         let window = NSWindow(contentRect: board.bounds, styleMask: .borderless, backing: .buffered, defer: false)
@@ -523,19 +526,19 @@ final class BoardTests: XCTestCase {
         let now = ProcessInfo.processInfo.systemUptime
         board.pulse(34, source: .monitor, tracksRelease: true, at: now - 2)
         let steady = try brightness(34)
-        let steadyEdge = try brightness(34, inset: 10)
         XCTAssertGreaterThan(steady, 0.85)
         XCTAssertNil(board.pulse(34, source: .local, tracksRelease: true))
         XCTAssertEqual(try brightness(34), steady, accuracy: 0.02)
         board.releaseKey(34)
-        XCTAssertLessThan(try brightness(34), 0.02)
+        XCTAssertGreaterThan(try brightness(34), 0.75)
 
         for style in EffectStyle.allCases {
+            board.clearHeldKeys()
             board.effects.style = style
             board.resetBeamHistory(matching: nil)
-            board.pulse(34, source: .monitor, tracksRelease: true)
-            XCTAssertGreaterThan(try brightness(34, inset: 10), steadyEdge + 0.2, "\(style)")
-            board.releaseKey(34)
+            let start = ProcessInfo.processInfo.systemUptime
+            board.pulse(34, source: .monitor, tracksRelease: true, at: start - 2)
+            board.releaseKey(34, at: start - BlastEffect.outlineFadeOut - 0.02)
             XCTAssertLessThan(try brightness(34), 0.02, "\(style)")
         }
     }
@@ -564,22 +567,47 @@ final class BoardTests: XCTestCase {
 
         board.pulse(34, source: .monitor, tracksRelease: true, at: 8)
         let held = try brightness(at: 10)
-        let heldEdge = try brightness(at: 10, inset: 10)
+        let steadyEdge = try brightness(at: 10, inset: 9)
         XCTAssertGreaterThan(held, 0.85)
         board.releaseKey(34, at: 10)
         board.releaseKey(34, at: 10.25)
         XCTAssertEqual(try brightness(at: 10.49), held, accuracy: 0.02)
-        XCTAssertLessThan(try brightness(at: 10.5), 0.02)
+        XCTAssertEqual(try brightness(at: 10.5), held, accuracy: 0.02)
+        let fading = try brightness(at: 10.59)
+        XCTAssertGreaterThan(fading, 0.1)
+        XCTAssertLessThan(fading, held - 0.1)
+        XCTAssertLessThan(try brightness(at: 10.69), 0.02)
 
         board.pulse(34, source: .monitor, tracksRelease: true, at: 11)
         board.releaseKey(34, at: 11.3)
         board.pulse(34, source: .monitor, tracksRelease: true, at: 11.4)
-        XCTAssertGreaterThan(try brightness(at: 11.4, inset: 10), heldEdge + 0.2)
+        XCTAssertEqual(try brightness(at: 11.4), held, accuracy: 0.02)
         XCTAssertEqual(try brightness(at: 12), held, accuracy: 0.02)
         board.releaseKey(34, at: 12)
         XCTAssertEqual(try brightness(at: 12.4), held, accuracy: 0.02)
         board.effects.borderReleaseDelay = false
         XCTAssertLessThan(try brightness(at: 12.4), 0.02)
+
+        board.pulse(34, source: .monitor, tracksRelease: true, at: 13)
+        XCTAssertLessThan(try brightness(at: 13), 0.02)
+        let entering = try brightness(at: 13.03)
+        XCTAssertGreaterThan(entering, 0.1)
+        XCTAssertLessThan(entering, try brightness(at: 13.07))
+        XCTAssertGreaterThan(try brightness(at: 13.06, inset: 9), steadyEdge + 0.1)
+        board.releaseKey(34, at: 13.2)
+        let tail = try brightness(at: 13.29)
+        XCTAssertGreaterThan(tail, 0.1)
+        XCTAssertLessThan(tail, held - 0.1)
+        board.pulse(34, source: .monitor, tracksRelease: true, at: 13.29)
+        XCTAssertEqual(try brightness(at: 13.29), tail, accuracy: 0.02)
+        board.releaseKey(34, at: 13.30)
+        XCTAssertLessThan(try brightness(at: 13.49), 0.02)
+
+        // Even a down/up pair delivered in the same frame should produce a visible tap.
+        board.pulse(34, source: .monitor, tracksRelease: true, at: 14)
+        board.releaseKey(34, at: 14)
+        XCTAssertGreaterThan(try brightness(at: 14.04), 0.1)
+        XCTAssertLessThan(try brightness(at: 14.19), 0.02)
     }
 
     @MainActor
