@@ -32,7 +32,10 @@ export KBD_UPDATE_PUBLIC_KEY
 umask 022
 scripts/build.sh release
 bundle="dist/kbd-display.app"
-lipo -verify_arch arm64 x86_64 "$bundle/Contents/MacOS/kbd-display"
+architectures=$(lipo -archs "$bundle/Contents/MacOS/kbd-display")
+for arch in arm64 x86_64; do
+    [[ " $architectures " == *" $arch "* ]] || { echo "Missing $arch executable slice" >&2; exit 1; }
+done
 if [[ "${SIGNING_ONLY:-false}" == true ]]; then
     [[ "${GITHUB_EVENT_NAME:?}" == workflow_dispatch ]]
     echo "Verified the signed universal app."
