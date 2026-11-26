@@ -569,8 +569,10 @@ final class MusicAudioEngine: ObservableObject {
 
         if now - lastMeterPush >= 0.05 {
             lastMeterPush = now
-            let downsampled = (0..<16).map { i in
-                (frame.bands[i * 2] + frame.bands[i * 2 + 1]) * 0.5
+            let downsampled: [Float] = (0..<16).map { i in
+                let index = i * 2
+                let sum = frame.bands[index] + frame.bands[index + 1]
+                return sum * 0.5
             }
             let beat = frame.beatPulse
             DispatchQueue.main.async { [weak self] in
