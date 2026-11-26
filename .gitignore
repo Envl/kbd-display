@@ -1,0 +1,14 @@
+.build/
+dist/
+.DS_Store
+
+# Local release credentials and packaging output
+.env
+.env.*
+*.p12
+*.p8
+*.keychain-db
+*.pem
+*.ed25519
+*.key
+node_modules/

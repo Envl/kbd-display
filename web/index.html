@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="theme-color" content="#141412" />
+    <link rel="icon" href="data:," />
+    <title>🟠 Keyboard Ninja</title>
+    <link rel="stylesheet" href="game.css" />
+  </head>
+  <body>
+    <header>
+      <div class="brand"><i class="claw" aria-hidden="true"></i>Keyboard Ninja</div>
+      <nav aria-label="Game mode" id="modes">
+        <button data-mode="classic">Classic</button><button data-mode="zen">Zen</button
+        ><button data-mode="arcade">Arcade</button>
+      </nav>
+      <div class="tools">
+        <label class="theme"
+          ><span>Theme</span
+          ><select id="theme" aria-label="Theme">
+            <option value="fruit">Fruit</option>
+            <option value="vegetables">Vegetables</option>
+            <option value="gadgets">Gadgets</option>
+          </select></label
+        >
+        <button id="music" class="icon" aria-label="Music" title="Music">♫</button>
+        <button id="sound" class="icon" aria-label="Sound effects" title="Sound effects">◖))</button>
+        <button id="fullscreen" class="icon" aria-label="Full screen" title="Full screen">⛶</button>
+      </div>
+    </header>
+    <main id="arena" tabindex="-1" aria-label="Slicing arena">
+      <div id="field">
+        <div id="keys" aria-hidden="true"></div>
+        <canvas id="juice"></canvas><canvas id="action"></canvas>
+      </div>
+      <canvas id="swipe" hidden aria-hidden="true"></canvas>
+      <div class="readout">
+        <div>
+          <span>Score</span>
+          <div class="score-digits">
+            <strong id="score">000</strong><canvas id="score-fx" aria-hidden="true" hidden></canvas>
+          </div>
+          <small id="boost" hidden></small>
+        </div>
+        <div><span>Best</span><b id="best">000</b></div>
+      </div>
+      <div class="round-status">
+        <strong id="status"></strong
+        ><button id="pause" class="icon" aria-label="Pause game" title="Pause (Esc)" hidden>Ⅱ</button>
+      </div>
+      <div id="cover">
+        <section class="intro">
+          <h1 id="headline">Fruit<br /><em>Ninja</em></h1>
+          <p id="instructions">Hold a marked key. Tap another to slice.</p>
+          <p id="result" hidden></p>
+          <button id="start" disabled>
+            <span class="play" aria-hidden="true"></span><strong>Start game</strong><kbd>Space</kbd>
+          </button>
+        </section>
+        <div id="still-life" aria-hidden="true">
+          <i class="cut-flash"></i><canvas id="hero"></canvas>
+        </div>
+      </div>
+    </main>
+    <footer>
+      <div class="blade-label"><span>Blade</span><strong id="blade-name">Plasma Katana</strong></div>
+      <div id="blades" role="group" aria-label="Blade selection"></div>
+      <button id="grid" title="Cycle key grid">Grid <b>Subtle</b></button>
+    </footer>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "keyboard-ninja-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "python3 -m http.server 4399 --bind 127.0.0.1",
+    "check": "node --check app.js && node --check render.js && node --check juice.js && node --check audio.js && node --check score-fx.js && node --check export.mjs && node --test test/engine.test.js"
+  }
+}
