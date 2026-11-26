@@ -748,10 +748,10 @@ final class BoardTests: XCTestCase {
         context.translateBy(x: 0, y: Action75.canvas.height)
         context.scaleBy(x: 1, y: -1)
 
-        func render(at time: TimeInterval) {
+        func render(at time: TimeInterval, reduceMotion: Bool = false) {
             context.setFillColor(red: 0, green: 0, blue: 0, alpha: 1)
             context.fill(board.bounds)
-            board.drawOrientationMarkers(in: context, now: time)
+            board.drawOrientationMarkers(in: context, now: time, reduceMotion: reduceMotion)
         }
 
         func brightnessAt(_ x: Int, _ y: Int, file: StaticString = #filePath, line: UInt = #line) throws -> CGFloat {
@@ -818,6 +818,14 @@ final class BoardTests: XCTestCase {
             }
             XCTAssertGreaterThan(brightestSides.count, 1)
         }
+
+        let homingKey = try XCTUnwrap(Action75.rects[3])
+        let sample = borderPoints(for: homingKey, inset: 5)[0]
+        render(at: 0, reduceMotion: true)
+        let steady = try brightnessAt(Int(sample.x), Int(sample.y))
+        XCTAssertGreaterThan(steady, 0.1)
+        render(at: 1.6, reduceMotion: true)
+        XCTAssertEqual(try brightnessAt(Int(sample.x), Int(sample.y)), steady, accuracy: 0.01)
 
         board.effects.showOrientationMarkers = false
         render(at: 1.6)

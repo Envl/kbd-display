@@ -454,7 +454,8 @@ final class BoardView: NSView {
         }
     }
 
-    func drawOrientationMarkers(in cg: CGContext, now: TimeInterval) {
+    func drawOrientationMarkers(in cg: CGContext, now: TimeInterval,
+                                reduceMotion: Bool = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion) {
         guard effects.showOrientationMarkers else { return }
         cg.saveGState()
         defer { cg.restoreGState() }
@@ -462,7 +463,6 @@ final class BoardView: NSView {
         cg.setLineCap(.round)
         cg.setLineJoin(.round)
 
-        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         let cornerRadius: CGFloat = 12
 
         // 1. Digit markers (3, 6, 9): wide electric cyan-white glow brim + blazing flowing comet sweep.
