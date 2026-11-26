@@ -4,7 +4,8 @@ import SwiftUI
 final class EffectsWindow: NSWindow, NSWindowDelegate {
     private let recorder: ShortcutRecorder
 
-    init(store: EffectSettingsStore, updates: AppUpdates, recorder: ShortcutRecorder, settingsBoard: BoardView, beside preview: NSWindow?,
+    init(store: EffectSettingsStore, updates: AppUpdates, recorder: ShortcutRecorder, beside preview: NSWindow?,
+         previewCreated: @escaping (BoardView) -> Void,
          selectOutput: @escaping (String?) -> Void, requestAccess: @escaping () -> Void) {
         self.recorder = recorder
         super.init(contentRect: NSRect(x: 0, y: 0, width: 780, height: 600),
@@ -12,7 +13,7 @@ final class EffectsWindow: NSWindow, NSWindowDelegate {
         title = "Effects"
         isReleasedWhenClosed = false
         delegate = self
-        contentView = NSHostingView(rootView: EffectsForm(store: store, updates: updates, recorder: recorder, settingsBoard: settingsBoard,
+        contentView = NSHostingView(rootView: EffectsForm(store: store, updates: updates, recorder: recorder, previewCreated: previewCreated,
             selectOutput: selectOutput, requestAccess: requestAccess,
             page: store.connection.hasOutput && store.keyboardMonitoringActive ? .appearance : .setup))
         contentMinSize = NSSize(width: 640, height: 400)
@@ -103,7 +104,7 @@ private struct EffectsForm: View {
     @ObservedObject var store: EffectSettingsStore
     @ObservedObject var updates: AppUpdates
     let recorder: ShortcutRecorder
-    let settingsBoard: BoardView
+    let previewCreated: (BoardView) -> Void
     let selectOutput: (String?) -> Void
     let requestAccess: () -> Void
     @State var page: EffectsPage?
@@ -161,8 +162,7 @@ private struct EffectsForm: View {
                 Form {
                     if [.appearance, .keys, .dictation].contains(page ?? .appearance) {
                         Section {
-                            BoardSettingsPreview(board: settingsBoard, settings: store.value, paused: store.isPaused,
-                                                 labelKeys: page == .dictation)
+                            BoardSettingsPreview(store: store, labelKeys: page == .dictation, previewCreated: previewCreated)
                                 .aspectRatio(8 / 3, contentMode: .fit)
                                 .clipShape(RoundedRectangle(cornerRadius: 7))
                                 .accessibilityLabel("Keyboard preview")
@@ -285,25 +285,37 @@ private struct EffectsForm: View {
     }
 }
 
-private struct BoardSettingsPreview: NSViewRepresentable {
-    let board: BoardView
-    let settings: EffectConfiguration
-    let paused: Bool
+extension BoardView {
+    func applySettingsPreview(_ settings: EffectConfiguration, paused: Bool) {
+        // Mirrored key presses already produce sound and music impulses on the output board.
+        var visual = settings
+        visual.soundEnabled = false
+        visual.musicAmbient = false
+        if visual != effects { effects = visual }
+        effectsPaused = paused
+    }
+}
+
+struct BoardSettingsPreview: NSViewRepresentable {
+    @ObservedObject var store: EffectSettingsStore
     let labelKeys: Bool
+    let previewCreated: (BoardView) -> Void
 
     func makeNSView(context: Context) -> BoardView {
+        let board = BoardView()
         board.interactive = true
+        configure(board)
+        previewCreated(board)
         return board
     }
 
     func updateNSView(_ view: BoardView, context: Context) {
-        // Preview key presses must not play a second sound or inject another music beat.
-        view.keycapPreview = labelKeys ? .labeled : .tiles
-        var visual = settings
-        visual.soundEnabled = false
-        visual.musicAmbient = false
-        if visual != view.effects { view.effects = visual }
-        view.effectsPaused = paused
+        configure(view)
+    }
+
+    private func configure(_ board: BoardView) {
+        board.keycapPreview = labelKeys ? .labeled : .tiles
+        board.applySettingsPreview(store.value, paused: store.isPaused)
     }
 
     static func dismantleNSView(_ view: BoardView, coordinator: ()) {

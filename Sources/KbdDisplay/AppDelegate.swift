@@ -8,9 +8,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let updates = AppUpdates()
     private var updateObserver: AnyCancellable?
     private let effectsStore = EffectSettingsStore()
-    private let settingsBoard = BoardView()
+    private weak var settingsBoard: BoardView?
     private let recorder = ShortcutRecorder()
-    private lazy var effectsWindow = EffectsWindow(store: effectsStore, updates: updates, recorder: recorder, settingsBoard: settingsBoard, beside: previewWindow,
+    private lazy var effectsWindow = EffectsWindow(store: effectsStore, updates: updates, recorder: recorder, beside: previewWindow,
+        previewCreated: { [weak self] in self?.settingsBoard = $0 },
         selectOutput: { [weak self] in self?.setOutput($0) },
         requestAccess: { [weak self] in self?.openInputMonitoringSettings() })
     private var previewWindow: NSWindow?
@@ -48,12 +49,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var captureError: CGError?
     private var observingDisplayChanges = false
     private var boards: [BoardView] { [output.board, preview] }
-    private var settingsPreviewVisible: Bool { settingsBoard.window?.isVisible == true }
+    private var settingsPreviewVisible: Bool { settingsBoard?.window?.isVisible == true }
     private lazy var presses = PressMonitor(onKeyEvent: { [weak self] code, event in
         self?.handleKey(code, event)
     }, onReset: { [weak self] in
         self?.boards.forEach { $0.clearHeldKeys(from: .monitor) }
-        self?.settingsBoard.clearHeldKeys()
+        self?.settingsBoard?.clearHeldKeys()
         DictationBlobController.shared.stop()
         self?.recorder.cancel()
     })
@@ -85,7 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .down: relayPress(code, source: .monitor, tracksRelease: true)
         case .up:
             boards.forEach { $0.releaseKey(code) }
-            settingsBoard.releaseKey(code)
+            settingsBoard?.releaseKey(code)
         case .tap: relayPress(code, source: .monitor)
         }
     }
@@ -93,7 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func relayPress(_ code: UInt16, source: BoardView.Input, tracksRelease: Bool = false) {
         let beam = output.board.pulse(code, source: source, tracksRelease: tracksRelease)
         if settingsPreviewVisible {
-            settingsBoard.pulse(code, source: source, matching: beam, tracksRelease: tracksRelease)
+            settingsBoard?.pulse(code, source: source, matching: beam, tracksRelease: tracksRelease)
         }
         if (!sampleMode || source == .monitor), beam != nil || tracksRelease {
             preview.pulse(code, source: source, matching: beam, tracksRelease: tracksRelease)
@@ -131,7 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 )
             }
             self.boards.forEach { $0.wakeForDictationBlob() }
-            if self.settingsPreviewVisible { self.settingsBoard.wakeForDictationBlob() }
+            if self.settingsPreviewVisible { self.settingsBoard?.wakeForDictationBlob() }
         }
         applyEffects(effectsStore.value)
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .flagsChanged]) { [weak self] event in
@@ -183,7 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Without global access a key released in another app cannot reach us.
         if !presses.isRunning {
             boards.forEach { $0.clearHeldKeys() }
-            settingsBoard.clearHeldKeys()
+            settingsBoard?.clearHeldKeys()
             DictationBlobController.shared.stop()
         }
     }
@@ -276,7 +277,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func wake() {
         boards.forEach { $0.clearHeldKeys() }
-        settingsBoard.clearHeldKeys()
+        settingsBoard?.clearHeldKeys()
         DictationBlobController.shared.stop()
         ensureGlobalMonitoring()
         refresh()
@@ -515,6 +516,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             board.effectsPaused = paused
             board.effects = settings
         }
+        settingsBoard?.applySettingsPreview(settings, paused: paused)
         if paused { KeyboardSoundEngine.shared.stop() }
         if let button = effectsPauseButton, button.title != effectsPauseTitle {
             button.title = effectsPauseTitle
