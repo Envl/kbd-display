@@ -145,7 +145,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         NotificationCenter.default.addObserver(self, selector: #selector(clearLocalHolds),
             name: NSWindow.didResignKeyNotification, object: nil)
-        loadCalibration()
+        setBoardClip(BoardClip.load(from: defaults))
         var displayedProvider: HintProvider?
         receiver = HintReceiver(onIcon: { [weak self] id, image in
             guard let self else { return }
@@ -462,47 +462,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         preview.title = sampleMode ? nil : output.board.title
     }
 
-    private func loadCalibration() {
-        let values = defaults.array(forKey: "boardRect") as? [Double] ?? []
-        guard values.count == 4, values.allSatisfy(\.isFinite), values[2] > 0, values[3] > 0 else { return }
-        for board in boards {
-            board.boardRect = CGRect(x: values[0], y: values[1], width: values[2], height: values[3])
-        }
+    private func setBoardClip(_ clip: BoardClip) {
+        boards.forEach { $0.boardClip = clip }
     }
 
     #if DEBUG
-    @objc private func calibrate() {
+    @MainActor @objc private func calibrate() {
         if output.activeDisplayID == nil { openPreview(sample: false) }
         boards.forEach { $0.calibration = true }
         defer { boards.forEach { $0.calibration = false } }
-        let rect = output.board.boardRect
-        let box = NSStackView()
-        box.orientation = .vertical
-        box.alignment = .trailing
-        let fields = zip(["Left", "Top", "Width", "Height"], [rect.minX, rect.minY, rect.width, rect.height]).map { name, value in
-            let field = NSTextField(string: String(Int(value.rounded())))
-            field.widthAnchor.constraint(equalToConstant: 72).isActive = true
-            box.addArrangedSubview(NSStackView(views: [NSTextField(labelWithString: name), field]))
-            return field
-        }
-        box.frame.size = box.fittingSize
+
+        let original = output.board.boardClip
+        let fields = CalibrationFields(original)
         let alert = NSAlert()
-        alert.messageText = "Key grid in panel pixels"
-        alert.accessoryView = box
-        alert.addButton(withTitle: "Apply")
+        alert.messageText = "Clip keyboard edges (px)"
+        alert.accessoryView = fields.view
+        let apply = alert.addButton(withTitle: "Apply")
         alert.addButton(withTitle: "Cancel")
+        fields.onChange = { [weak self] clip in
+            apply.isEnabled = clip != nil
+            if let clip { self?.setBoardClip(clip) }
+        }
         NSApp.activate(ignoringOtherApps: true)
-        while alert.runModal() == .alertFirstButtonReturn {
-            let values = fields.compactMap { Int($0.stringValue) }
-            if values.count == 4 && values.allSatisfy({ (-8192...8192).contains($0) }) && values[2] > 0 && values[3] > 0 {
-                defaults.set(values, forKey: "boardRect")
-                loadCalibration()
-                break
-            }
-            alert.informativeText = "Enter whole pixel values within ±8192 and positive dimensions."
+        if alert.runModal() == .alertFirstButtonReturn, let clip = fields.clip {
+            setBoardClip(clip)
+            clip.save(to: defaults)
+        } else {
+            setBoardClip(original)
         }
     }
-
     #endif
 
     @objc private func toggleMusicAmbient() {

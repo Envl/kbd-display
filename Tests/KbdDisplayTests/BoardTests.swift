@@ -101,13 +101,41 @@ final class BoardTests: XCTestCase {
     }
 
     @MainActor
-    func testDebugHitTestingTracksLetterboxAndCalibration() {
-        let board = BoardView(frame: CGRect(x: 0, y: 0, width: 960, height: 480))
-        board.boardRect = CGRect(x: 60, y: 20, width: 1728, height: 648)
-        let f = Action75.rects[3]!
-        let center = CGPoint(x: (60 + f.midX * 0.9) / 2, y: 60 + (20 + f.midY * 0.9) / 2)
-        XCTAssertEqual(board.key(at: center), 3)
-        XCTAssertNil(board.key(at: CGPoint(x: 5, y: 10)))
+    func testClippedEdgesMapToOutputAndLetterboxedPreview() throws {
+        let clip = try XCTUnwrap(BoardClip(left: 150, right: 280, top: 130, bottom: 145))
+        let output = DisplayOutput().board
+        output.frame = CGRect(x: 0, y: 0, width: 1600, height: 900)
+        let preview = BoardView(frame: CGRect(x: 0, y: 0, width: 960, height: 480))
+        let previewFrame = CGRect(x: 0, y: 60, width: 960, height: 360)
+        for (board, frame) in [(output, output.bounds), (preview, previewFrame)] {
+            board.boardClip = clip
+            // The four screen corners now land on 1, Delete, left Shift and right Shift.
+            for (x, y, key): (CGFloat, CGFloat, UInt16) in [
+                (frame.minX + 1, frame.minY + 1, 18), (frame.maxX - 1, frame.minY + 1, 51),
+                (frame.minX + 1, frame.maxY - 1, 56), (frame.maxX - 1, frame.maxY - 1, 60)
+            ] {
+                XCTAssertEqual(board.key(at: CGPoint(x: x, y: y)), key)
+            }
+        }
+        XCTAssertNil(preview.key(at: CGPoint(x: 50, y: 59)))
+        XCTAssertNil(preview.key(at: CGPoint(x: 50, y: 421)))
+    }
+
+    func testClipValidationPersistenceAndLegacyOverscan() throws {
+        let suite = UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        XCTAssertEqual(BoardClip.load(from: defaults), BoardClip(left: 32, right: 30, top: 14, bottom: 10))
+        XCTAssertNil(BoardClip(left: -1, right: 0, top: 0, bottom: 0))
+        XCTAssertNil(BoardClip(left: 100, right: 1820, top: 0, bottom: 0))
+        XCTAssertNil(BoardClip(left: 0, right: 0, top: 200, bottom: Int.max))
+        defaults.set([-240, -90, 2400, 900], forKey: "boardRect")
+        XCTAssertEqual(BoardClip.load(from: defaults), BoardClip(left: 192, right: 192, top: 72, bottom: 72))
+        let custom = try XCTUnwrap(BoardClip(left: 20, right: 35, top: 0, bottom: 1))
+        custom.save(to: defaults)
+        XCTAssertEqual(BoardClip.load(from: defaults), custom)
+        BoardClip.none.save(to: defaults)
+        XCTAssertEqual(BoardClip.load(from: defaults), .none)
     }
 
     func testMetalFoilSoftensAtEveryEdgeAndClears() throws {

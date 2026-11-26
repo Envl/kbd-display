@@ -64,7 +64,7 @@ final class BoardView: NSView {
     enum KeycapPreview { case none, tiles, labeled }
     var keycapPreview = KeycapPreview.none { didSet { if keycapPreview != oldValue { needsDisplay = true } } }
     var calibration = false { didSet { needsDisplay = true } }
-    var boardRect = CGRect(origin: .zero, size: Action75.canvas) { didSet { needsDisplay = true } }
+    var boardClip = BoardClip.none { didSet { needsDisplay = true } }
     enum Input: Hashable { case local, mouse, monitor, plugin }
 
     struct Hit {
@@ -193,13 +193,14 @@ final class BoardView: NSView {
 
     private var canvasTransform: CGAffineTransform {
         let frame = canvasFrame
+        let visible = boardClip.visibleRect
         return CGAffineTransform(translationX: frame.minX, y: frame.minY)
-            .scaledBy(x: frame.width / Action75.canvas.width, y: frame.height / Action75.canvas.height)
-            .translatedBy(x: boardRect.minX, y: boardRect.minY)
-            .scaledBy(x: boardRect.width / Action75.canvas.width, y: boardRect.height / Action75.canvas.height)
+            .scaledBy(x: frame.width / visible.width, y: frame.height / visible.height)
+            .translatedBy(x: -visible.minX, y: -visible.minY)
     }
 
     func key(at point: CGPoint) -> UInt16? {
+        guard canvasFrame.contains(point) else { return nil }
         let native = point.applying(canvasTransform.inverted())
         return Action75.rects.first { $0.value.contains(native) }?.key
     }
@@ -378,6 +379,14 @@ final class BoardView: NSView {
         defer { cg.restoreGState() }
         cg.clip(to: canvasFrame)
         cg.concatenate(canvasTransform)
+        if calibration {
+            for (code, frame) in Action75.rects {
+                NSColor.darkGray.setStroke()
+                NSBezierPath(rect: frame.insetBy(dx: 2, dy: 2)).stroke()
+                text(String(code), in: frame.insetBy(dx: 5, dy: 5), size: 18)
+            }
+            return
+        }
         let now = ProcessInfo.processInfo.systemUptime
         let colors = effects.colorParams
         if !effectsPaused && effects.musicAmbient {
@@ -396,13 +405,6 @@ final class BoardView: NSView {
                     if keycapPreview == .labeled, let legend = Action75.legends[code] {
                         text(legend, in: CGRect(x: tile.minX, y: tile.midY - 14, width: tile.width, height: 32), size: 22)
                     }
-                }
-            }
-            if calibration {
-                for (code, frame) in Action75.rects {
-                    NSColor.darkGray.setStroke()
-                    NSBezierPath(rect: frame.insetBy(dx: 2, dy: 2)).stroke()
-                    text(String(code), in: frame.insetBy(dx: 5, dy: 5), size: 18)
                 }
             }
             if let title, let space = Action75.rects[49], !hints.contains(where: { $0.keyCode == 49 }) {

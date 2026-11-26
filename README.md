@@ -16,6 +16,8 @@ Under **Dictation**, click the current **Hold shortcut**, press your chosen keys
 
 Run `scripts/run.sh` for the Debug build. Its menu adds **Calibrate…**, **Exclusive Display Capture**, and **Debug Window…**, which opens an interactive floating preview with sample app icons and a live plugin view.
 
+In **Calibrate…**, enter how many keyboard-layout pixels extend past each display edge. One standard key is 120 pixels wide. If the panel falls half a key short on each side, enter 60 for both **Left** and **Right**. The grid previews each edit. **Apply** saves the alignment.
+
 With legends off, the idle frame is black. A round foil glow travels from the previous key’s center to the new key’s center, spilling light and sparks across the keys between them. Each hit scatters larger sparks with individually sampled sizes and lanes. The destination key’s outline glows on contact and catches a softer glint as the glow arrives. The first hit uses a short local sweep. Repeating a key starts a small flicker. Rapid taps build its size, brightness, and ember count. After about a second of rest, or a change of key, it starts cool again. The traveling glow adapts Glimm 0.3.0 and the gradient settings from Shell Click’s homepage intro. Both outputs share the baked Metal frames for the glow and flame. The renderer reads virtual key codes for these effects and discards them after the animation. The ANSI key grid starts at 16 × 6 units and can be calibrated to the physical panel.
 
 ## Display plugin protocol v2
