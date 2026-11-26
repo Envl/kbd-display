@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 : "${RUNNER_TEMP:?}" "${GITHUB_REPOSITORY:?}" "${RELEASE_TAG:?}"
-: "${MACOS_CERTIFICATE_P12_BASE64:?}" "${MACOS_CERTIFICATE_PASSWORD:?}" "${MACOS_KEYCHAIN_PASSWORD:?}" "${APPLE_ID:?}" "${APPLE_TEAM_ID:?}" "${APPLE_APP_SPECIFIC_PASSWORD:?}" "${SPARKLE_ED_PRIVATE_KEY:?}"
+: "${MACOS_CERTIFICATE_P12_BASE64:?}" "${MACOS_CERTIFICATE_PASSWORD:?}" "${MACOS_KEYCHAIN_PASSWORD:?}" "${SPARKLE_ED_PRIVATE_KEY:?}"
 [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo "Expected a vMAJOR.MINOR.PATCH tag" >&2; exit 1; }
 export KBD_VERSION=${RELEASE_TAG#v}
 export KBD_UNIVERSAL=1 KBD_DISTRIBUTION=1
@@ -23,8 +23,6 @@ security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keycha
 KBD_DISPLAY_SIGN_IDENTITY=$(security find-identity -v -p codesigning "$keychain" | awk '/"Developer ID Application:/ {print $2; exit}')
 export KBD_DISPLAY_SIGN_IDENTITY
 : "${KBD_DISPLAY_SIGN_IDENTITY:?No Developer ID Application identity in certificate}"
-xcrun notarytool store-credentials kbd-display-notary --keychain "$keychain" \
-    --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD"
 
 # generate_keys exports modern Sparkle keys as a base64-encoded 32-byte seed.
 KBD_UPDATE_PUBLIC_KEY=$(swift -e 'import CryptoKit; import Foundation
@@ -35,6 +33,14 @@ umask 022
 scripts/build.sh release
 bundle="dist/kbd-display.app"
 lipo -verify_arch arm64 x86_64 "$bundle/Contents/MacOS/kbd-display"
+if [[ "${SIGNING_ONLY:-false}" == true ]]; then
+    [[ "${GITHUB_EVENT_NAME:?}" == workflow_dispatch ]]
+    echo "Verified the signed universal app."
+    exit 0
+fi
+: "${APPLE_ID:?}" "${APPLE_TEAM_ID:?}" "${APPLE_APP_SPECIFIC_PASSWORD:?}"
+xcrun notarytool store-credentials kbd-display-notary --keychain "$keychain" \
+    --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD"
 ditto -c -k --sequesterRsrc --keepParent "$bundle" "$credentials/notarize.zip"
 notarize() {
     xcrun notarytool submit "$1" --keychain-profile kbd-display-notary --keychain "$keychain" \

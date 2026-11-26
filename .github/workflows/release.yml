@@ -9,6 +9,10 @@ on:
         required: true
         type: string
         default: '0.1.0'
+      signing_only:
+        description: Verify the signed universal app without submitting to Apple
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -28,6 +32,7 @@ jobs:
       - name: Build, notarize and sign the update feed
         run: scripts/ci-release.sh
         env:
+          SIGNING_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_only }}
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
           MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}

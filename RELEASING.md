@@ -18,7 +18,7 @@ In **Settings → Environments → release**, add the following GitHub Actions e
 
 Use Sparkle’s `generate_keys --account kbd-display` from the pinned [Sparkle 2.10.1 distribution](https://github.com/sparkle-project/Sparkle/releases/tag/2.10.1). Export it to a private location outside the checkout with `generate_keys --account kbd-display -x /path/to/private/export`. Set the GitHub secret from that file. Back up the key securely. Future releases must use the same signing key. The workflow derives the public key for the app locally on the runner.
 
-Use **Actions → Publish macOS update → Run workflow** on `main` to verify signing, notarization, and packaging before the first tag. This manual run publishes no release.
+Use **Actions → Publish macOS update → Run workflow** on `main` to verify signing, notarization, and packaging before the first tag. Select **Verify the signed universal app without submitting to Apple** for a signing-only check. Manual runs publish no release.
 
 ## Cut a release
 
