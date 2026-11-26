@@ -6,6 +6,8 @@ A macOS menu bar app that lights up the VIPI Action75’s 1920 × 720 display as
 
 [Build from source](#build-from-source) or, when a packaged version is available, download **kbd-display.dmg** from [GitHub Releases](https://github.com/Envl/kbd-display/releases). Open the disk image and drag **kbd-display.app** to **Applications**. Release builds automatically check for signed updates. When an update has downloaded and is ready to install, an orange dot appears on the keyboard menu bar icon. Choose **Restart to Update** there or in **Effects…**. Quitting normally also lets Sparkle finish a staged installation.
 
+Enable **Open at Login** in the keyboard menu bar menu or in **Effects… → Setup** to start kbd-display when you sign in.
+
 ## Using the keyboard display
 
 Open **Effects… → Setup** for guided connection. Connect the keyboard display, set it to **Extended display** in macOS, and select it under **Output**. You can also select the screen from the menu bar. Selection is saved by display UUID and restored on reconnect. Choose **Output Off** to release it. The app starts listening for key presses on launch. Grant macOS Input Monitoring access so it can respond while other apps are active.

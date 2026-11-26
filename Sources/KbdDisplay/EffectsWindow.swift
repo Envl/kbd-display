@@ -4,7 +4,7 @@ import SwiftUI
 final class EffectsWindow: NSWindow, NSWindowDelegate {
     private let recorder: ShortcutRecorder
 
-    init(store: EffectSettingsStore, updates: AppUpdates, recorder: ShortcutRecorder, beside preview: NSWindow?,
+    init(store: EffectSettingsStore, updates: AppUpdates, loginItem: LoginItem, recorder: ShortcutRecorder, beside preview: NSWindow?,
          previewCreated: @escaping (BoardView) -> Void,
          selectOutput: @escaping (String?) -> Void, requestAccess: @escaping () -> Void) {
         self.recorder = recorder
@@ -13,7 +13,7 @@ final class EffectsWindow: NSWindow, NSWindowDelegate {
         title = "Effects"
         isReleasedWhenClosed = false
         delegate = self
-        contentView = NSHostingView(rootView: EffectsForm(store: store, updates: updates, recorder: recorder, previewCreated: previewCreated,
+        contentView = NSHostingView(rootView: EffectsForm(store: store, updates: updates, loginItem: loginItem, recorder: recorder, previewCreated: previewCreated,
             selectOutput: selectOutput, requestAccess: requestAccess,
             page: store.connection.hasOutput && store.keyboardMonitoringActive ? .appearance : .setup))
         contentMinSize = NSSize(width: 640, height: 400)
@@ -103,6 +103,7 @@ private enum EffectsPage: String, CaseIterable {
 private struct EffectsForm: View {
     @ObservedObject var store: EffectSettingsStore
     @ObservedObject var updates: AppUpdates
+    @ObservedObject var loginItem: LoginItem
     let recorder: ShortcutRecorder
     let previewCreated: (BoardView) -> Void
     let selectOutput: (String?) -> Void
@@ -173,6 +174,9 @@ private struct EffectsForm: View {
                         KeyboardSetup(connection: store.connection, monitoring: store.keyboardMonitoringActive,
                                       paused: store.isPaused, selectOutput: selectOutput, requestAccess: requestAccess,
                                       customize: { page = .appearance })
+                        Section {
+                            Toggle(LoginItem.title, isOn: Binding(get: { loginItem.isEnabled }, set: loginItem.setEnabled))
+                        }
                     case .appearance: appearance
                     case .keys: keyEffects
                     case .sound: sound

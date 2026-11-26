@@ -6,11 +6,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let output = DisplayOutput()
     private let preview = BoardView()
     let updates = AppUpdates()
+    @MainActor private lazy var loginItem = LoginItem()
     private var updateObserver: AnyCancellable?
     private let effectsStore = EffectSettingsStore()
     private weak var settingsBoard: BoardView?
     private let recorder = ShortcutRecorder()
-    private lazy var effectsWindow = EffectsWindow(store: effectsStore, updates: updates, recorder: recorder, beside: previewWindow,
+    @MainActor private lazy var effectsWindow = EffectsWindow(store: effectsStore, updates: updates, loginItem: loginItem, recorder: recorder, beside: previewWindow,
         previewCreated: { [weak self] in self?.settingsBoard = $0 },
         selectOutput: { [weak self] in self?.setOutput($0) },
         requestAccess: { [weak self] in self?.openInputMonitoringSettings() })
@@ -179,6 +180,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ensureGlobalMonitoring()
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        loginItem.refresh()
+    }
+
     func applicationDidResignActive(_ notification: Notification) {
         recorder.cancel()
         // Without global access a key released in another app cannot reach us.
@@ -312,6 +317,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func restartToUpdate() { updates.restartToUpdate() }
 
+    @MainActor @objc private func toggleOpenAtLogin() {
+        loginItem.refresh()
+        loginItem.setEnabled(!loginItem.isEnabled)
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         @discardableResult
         func item(_ title: String, _ action: Selector?) -> NSMenuItem {
@@ -346,6 +356,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         #endif
         item("Effects…", #selector(showEffects))
         item(effectsPauseTitle, #selector(toggleEffectsPause))
+        loginItem.refresh()
+        item(LoginItem.title, #selector(toggleOpenAtLogin)).state = loginItem.isEnabled ? .on : .off
         if updates.readyVersion != nil { item("Restart to Update", #selector(restartToUpdate)) }
         #if DEBUG
         item("Calibrate…", #selector(calibrate))
@@ -387,7 +399,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.windowsMenu = window
     }
 
-    @objc private func showEffects() {
+    @MainActor @objc private func showEffects() {
         effectsWindow.show()
     }
 

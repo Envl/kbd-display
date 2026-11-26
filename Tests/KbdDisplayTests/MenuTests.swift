@@ -9,7 +9,7 @@ final class MenuTests: XCTestCase {
         let delegate = AppDelegate()
         delegate.menuNeedsUpdate(menu)
         let actions = Set(menu.items.compactMap { $0.action.map(NSStringFromSelector) })
-        let releaseActions: Set<String> = ["selectOutput:", "showEffects", "toggleEffectsPause"]
+        let releaseActions: Set<String> = ["selectOutput:", "showEffects", "toggleEffectsPause", "toggleOpenAtLogin"]
         #if DEBUG
         XCTAssertEqual(actions, releaseActions.union(["showDebug", "toggleExclusiveCapture", "calibrate", "toggleMusicAmbient", "quit"]))
         #else
