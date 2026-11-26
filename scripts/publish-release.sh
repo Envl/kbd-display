@@ -4,7 +4,8 @@ set -euo pipefail
 tag="$GITHUB_REF_NAME"
 artifacts="$RUNNER_TEMP/update-release"
 zip="$artifacts/kbd-display-${tag#v}.zip"
-test -s "$zip" && test -s "$artifacts/appcast.xml" || exit 1
+dmg="$artifacts/kbd-display.dmg"
+test -s "$zip" && test -s "$dmg" && test -s "$artifacts/appcast.xml" || exit 1
 
 # Refuse to move the stable feed backwards or overwrite a published release.
 releases=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --slurp)
@@ -28,5 +29,5 @@ if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
     gh release create "$tag" --repo "$GITHUB_REPOSITORY" --verify-tag --draft --generate-notes --title "$tag"
 fi
 [[ "$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == true ]]
-gh release upload "$tag" "$zip" "$artifacts/appcast.xml" --repo "$GITHUB_REPOSITORY" --clobber
+gh release upload "$tag" "$dmg" "$zip" "$artifacts/appcast.xml" --repo "$GITHUB_REPOSITORY" --clobber
 gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest

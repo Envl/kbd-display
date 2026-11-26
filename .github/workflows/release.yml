@@ -2,6 +2,13 @@ name: Publish macOS update
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to build and verify without publishing
+        required: true
+        type: string
+        default: '0.1.0'
 permissions:
   contents: read
 concurrency:
@@ -10,6 +17,7 @@ concurrency:
 jobs:
   release:
     runs-on: macos-15
+    environment: release
     permissions:
       contents: write
     steps:
@@ -20,13 +28,16 @@ jobs:
       - name: Build, notarize and sign the update feed
         run: scripts/ci-release.sh
         env:
-          DEVELOPER_ID_P12: ${{ secrets.DEVELOPER_ID_P12 }}
-          DEVELOPER_ID_PASSWORD: ${{ secrets.DEVELOPER_ID_PASSWORD }}
-          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
-          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
-          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
-          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-      - name: Publish the archive and appcast together
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+      - name: Publish installer, update archive and appcast
+        if: github.event_name == 'push'
         run: scripts/publish-release.sh
         env:
           GH_TOKEN: ${{ github.token }}

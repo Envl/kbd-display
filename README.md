@@ -4,7 +4,7 @@ A macOS menu bar app that lights up the VIPI Action75’s 1920 × 720 display as
 
 ## Install and update
 
-[Build from source](#build-from-source) or, when a packaged version is available, download the app ZIP from [GitHub Releases](https://github.com/Envl/kbd-display/releases). Extract **kbd-display.app** and move it to **Applications** before opening it. Release builds automatically check for signed updates. When an update has downloaded and is ready to install, an orange dot appears on the keyboard menu bar icon. Choose **Restart to Update** there or in **Effects…**. Quitting normally also lets Sparkle finish a staged installation.
+[Build from source](#build-from-source) or, when a packaged version is available, download **kbd-display.dmg** from [GitHub Releases](https://github.com/Envl/kbd-display/releases). Open the disk image and drag **kbd-display.app** to **Applications**. Release builds automatically check for signed updates. When an update has downloaded and is ready to install, an orange dot appears on the keyboard menu bar icon. Choose **Restart to Update** there or in **Effects…**. Quitting normally also lets Sparkle finish a staged installation.
 
 ## Using the keyboard display
 
@@ -68,7 +68,7 @@ The build script uses a local Developer ID or Apple Development identity when av
 
 ## Release automation
 
-GitHub Actions tests branches and pull requests. A stable version tag such as `v1.2.3` triggers a universal Release build, Apple notarization, and publication of the signed update ZIP and appcast as a single GitHub Release. The feed URL comes from the repository running the workflow. A public repository is required for clients to fetch the feed without authentication. See [release setup](RELEASING.md).
+GitHub Actions tests branches and pull requests. A stable version tag such as `v1.2.3` triggers a universal Release build, Apple notarization, and publication of the installer DMG, signed update ZIP, and appcast as a single GitHub Release. The feed URL comes from the repository running the workflow. A public repository is required for clients to fetch the feed without authentication. See [release setup](RELEASING.md).
 
 ## License
 
