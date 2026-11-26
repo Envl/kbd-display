@@ -134,6 +134,49 @@ final class MusicAmbientTests: XCTestCase {
     }
 
     @MainActor
+    func testWaterPoolKeepsRapidTypingRipplesVisibleAndDim() throws {
+        guard MTLCreateSystemDefaultDevice() != nil else { throw XCTSkip("Metal device unavailable") }
+        let renderer = MusicAmbientRenderer()
+        var settings = EffectConfiguration()
+        settings.musicVisual = .waterPool
+        settings.musicAutoCycle = false
+        let dt = 1.0 / 60.0
+        let keys: [UInt16] = [0, 1, 2, 3, 38, 40]
+        var brightest = 0
+        func peakLuminance(at time: Double) throws -> Int {
+            let image = try XCTUnwrap(renderer.shader.render(style: .waterPool, frame: .silent, time: time,
+                colors: settings.colorParams, intensity: settings[.musicIntensity], reactivity: settings[.musicReactivity]))
+            let data = try XCTUnwrap(image.dataProvider?.data)
+            let pixels = try XCTUnwrap(CFDataGetBytePtr(data))
+            var peak = 0
+            for i in stride(from: 0, to: image.bytesPerRow * image.height, by: 4) {
+                let luma = (54 * Int(pixels[i]) + 183 * Int(pixels[i + 1]) + 19 * Int(pixels[i + 2])) / 256
+                peak = max(peak, luma)
+            }
+            return peak
+        }
+
+        let idle = try peakLuminance(at: 0)
+        for tick in 0..<120 {
+            if tick.isMultiple(of: 4) {
+                let code = keys[(tick / 4) % keys.count]
+                let rect = try XCTUnwrap(Action75.rects[code])
+                renderer.injectKeyImpulse(at: CGPoint(x: rect.midX, y: rect.midY), strength: 1.4)
+            }
+            let time = Double(tick) * dt
+            renderer.step(frame: .silent, dt: dt, now: time, settings: settings)
+            if tick % 4 == 1 { brightest = max(brightest, try peakLuminance(at: time)) }
+        }
+        for tick in 120..<240 {
+            renderer.step(frame: .silent, dt: dt, now: Double(tick) * dt, settings: settings)
+        }
+        let settled = try peakLuminance(at: 4)
+        XCTAssertGreaterThan(brightest, idle + 6)
+        XCTAssertLessThan(brightest, 105)
+        XCTAssertLessThanOrEqual(settled, idle + 4)
+    }
+
+    @MainActor
     func testAllTwelveMusicVisualStylesRenderNonEmptyPixels() throws {
         let renderer = MusicAmbientRenderer()
         var frame = MusicSpectrumFrame.silent

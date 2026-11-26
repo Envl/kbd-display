@@ -467,7 +467,7 @@ private extension MusicMetalContext {
         return uchar4(float4(graded, outA) * 255.0 + 0.5);
     }
 
-    // MARK: - 1. Realistic Shallow-Water Pool Simulation
+    // MARK: - 1. Water Pool
 
     kernel void waterImpulse(device float *curr [[buffer(0)]],
                              device float4 *tint [[buffer(1)]],
@@ -526,12 +526,11 @@ private extension MusicMetalContext {
         float diag = curr[ym * w + xm] + curr[ym * w + xp] + curr[yp * w + xm] + curr[yp * w + xp];
         float laplacian = card * 0.20 + diag * 0.05 - c;
 
-        float c2 = 0.88;
-        float damping = 0.985;
+        float velocity = (c - prev[y * w + x]) * 0.92;
         bool onBoundary = (x == 0 || x == w - 1 || y == 0 || y == h - 1);
         float edgeLoss = onBoundary ? 0.92 : 1.0;
 
-        float val = (2.0 * c - prev[y * w + x] + c2 * laplacian) * damping * edgeLoss;
+        float val = (c + velocity + 0.72 * laplacian) * 0.996 * edgeLoss;
         next[y * w + x] = clamp(val, -3.2, 3.2);
 
         float4 avgTint = (tintIn[y * w + x] * 4.0 + tintIn[y * w + xm] + tintIn[y * w + xp]
@@ -589,67 +588,35 @@ private extension MusicMetalContext {
         float2 grad = float2(hR - hL, hD - hU) * 0.5;
         float curvature = max(0.0, -(hL + hR + hU + hD - 4.0 * hC));
         float slope = length(grad);
-        float waveEnergy = saturate(abs(hC) * 0.75 + slope * 1.9 + curvature * 1.15);
+        float swell = smoothstep(0.015, 0.85, abs(hC) + 1.2 * slope);
+        float rim = smoothstep(0.025, 0.32, slope + 0.6 * curvature);
 
-        // Refracted 3D water normal
-        float3 N = normalize(float3(-grad.x * 3.1, -grad.y * 3.1, 1.0));
-        float3 V = float3(0.0, 0.0, 1.0);
-        float fresnel = 0.04 + 0.96 * pow(1.0 - saturate(dot(N, V)), 3.6);
-
-        // Refract UV onto submerged keycap floor
-        float2 refrUV = clamp(uv + N.xy * 0.045, float2(0.0), float2(0.999));
+        // A shallow refraction keeps the submerged keyboard edges easy to follow.
+        float2 refrUV = clamp(uv - grad * 0.018, float2(0.0), float2(0.999));
         uint refX = min(rDims.x - 1, uint(refrUV.x * float(rDims.x)));
         uint refY = min(rDims.y - 1, uint((1.0 - refrUV.y) * float(rDims.y)));
-        float4 sdfRef = sdfGrid[refY * rDims.x + refX];
-        float keyEdge = exp(-0.085 * sdfRef.x * sdfRef.x);
-        float channelGlow = smoothstep(20.0, 1.0, sdfRef.w) * smoothstep(-3.0, 6.0, sdfRef.x);
+        float edgeDist = sdfGrid[refY * rDims.x + refX].x;
+        float keyEdge = exp(-0.085 * edgeDist * edgeDist);
 
-        float3 palA = colorParams[0].xyz;
-        float3 palB = colorParams[1].xyz;
-        float3 palD = colorParams[2].xyz;
-
-        // Animated underwater caustic interference + physical wave convergence
-        float2 causticUV = refrUV * float2(11.0, 4.2) + N.xy * 1.6;
-        float c1 = sin(causticUV.x * 2.1 + u.time * 1.4 + sin(causticUV.y * 1.9 - u.time * 1.1));
-        float c2 = cos(causticUV.y * 2.7 - u.time * 1.2 + cos(causticUV.x * 1.7 + u.time * 0.9));
-        float web = pow(saturate(1.0 - abs(c1 + c2) * 0.55), 3.2);
-        float physicalCaustic = saturate(curvature * 1.85 + slope * 0.9);
-        float caustic = web * (0.14 + 0.55 * u.energy + 0.85 * waveEnergy) + physicalCaustic * 0.95;
-
+        // Soft color bands give the pool a game-water look: indigo depths, teal shallows, seafoam crests.
+        float2 p = refrUV * float2(18.0, 6.8);
+        float drift = sin(p.x + 0.22 * u.time + sin(p.y)) + cos(p.y - 0.18 * u.time);
+        float sandbar = smoothstep(-0.55, 0.45, drift);
+        float glint = smoothstep(0.015, 0.20, dot(grad, float2(-0.56, 0.83)));
         float4 dye = sampleTintBilinear(waterTint, wDims, uv);
-        float bandAtX = sampleBand(bands, uv.x);
-        float hueT = uv.x * 0.35 + hC * 0.25 + u.time * 0.04 + u.dominantPitch * 0.2;
-        float3 deepCol = foilPalette(hueT, palA, palB, palD);
-        float3 crestCol = foilPalette(hueT + 0.28, palA, palB, palD);
-        float3 floorCol = deepCol * (0.16 + 0.34 * u.energy + 0.28 * bandAtX)
-                        + deepCol * keyEdge * (0.15 + 0.55 * waveEnergy + 0.25 * u.beatPulse)
-                        + crestCol * channelGlow * (0.08 + 0.35 * waveEnergy);
+        float3 depths = float3(0.055, 0.10, 0.24);
+        float3 shallows = float3(0.075, 0.49, 0.55);
+        float3 seafoam = float3(0.44, 0.81, 0.71);
+        float3 water = mix(depths, shallows, 0.18 * sandbar + 0.52 * swell + 0.12 * saturate(dye.w));
+        water.b += 0.045 * clamp(dye.b - dye.g, -1.0, 1.0);
+        water = mix(water, seafoam, rim * (0.25 + 0.55 * glint));
+        float music = saturate(0.60 * u.energy + 0.25 * sampleBand(bands, uv.x) + 0.15 * u.beatPulse);
+        float alpha = 0.14 + 0.05 * sandbar + 0.08 * keyEdge + 0.27 * swell + 0.10 * rim + 0.16 * music;
 
-        // Specular sunlight / studio highlights on ripples
-        float3 L1 = normalize(float3(0.38, -0.52, 0.76));
-        float3 L2 = normalize(float3(-0.48, 0.32, 0.82));
-        float3 H1 = normalize(L1 + V);
-        float3 H2 = normalize(L2 + V);
-        float spec1 = pow(saturate(dot(N, H1)), 54.0) * (0.25 + 1.45 * slope);
-        float spec2 = pow(saturate(dot(N, H2)), 38.0) * (0.18 + 1.10 * slope);
-
-        // Chromatic dispersion on steep wave slopes
-        float3 dispCol = float3(
-            foilPalette(hueT - 0.09, palA, palB, palD).r,
-            foilPalette(hueT, palA, palB, palD).g,
-            foilPalette(hueT + 0.09, palA, palB, palD).b
-        );
-
-        float3 waterBody = floorCol
-                         + crestCol * caustic * 0.72
-                         + dye.rgb * (0.28 * waveEnergy + 0.14)
-                         + dispCol * fresnel * (0.45 + 0.75 * waveEnergy)
-                         + mix(crestCol, float3(0.95, 0.99, 1.0), 0.72) * (spec1 + spec2);
-
-        float activeFloor = max(waveEnergy, max(u.energy * 0.38, u.beatPulse * 0.42));
-        float alpha = saturate(0.28 * activeFloor + waveEnergy * 0.88 + caustic * 0.35 + (spec1 + spec2) * 0.8);
-        pixels[idx] = finishPixel(waterBody, alpha, palA, palB, palD,
-                                  colorParams[0].w, colorParams[1].w, u.intensity, colorParams[2].w);
+        // Use the same shuffle offset as the app's other fixed-palette effects.
+        float hueShift = colorParams[0].w + colorParams[2].x - 0.61018468;
+        pixels[idx] = finishPixel(water * alpha, alpha, colorParams[0].xyz, colorParams[1].xyz, colorParams[2].xyz,
+                                  hueShift, colorParams[1].w, u.intensity, colorParams[2].w);
     }
 
     // MARK: - 2. Aurora Ribbons

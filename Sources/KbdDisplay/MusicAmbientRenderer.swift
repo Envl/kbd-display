@@ -22,6 +22,8 @@ final class MusicAmbientRenderer {
     }
 
     let shader = MusicAmbientShader()
+    private static let maximumKeyImpulse: Float = 0.52
+    private var availableKeyImpulse = maximumKeyImpulse
     private var pendingKeyImpulses: [MusicMetalContext.WaterImpulseGPU] = []
     private var lastFrame: MusicSpectrumFrame = .silent
     private var animTime: TimeInterval = 0
@@ -45,6 +47,7 @@ final class MusicAmbientRenderer {
 
     func reset() {
         shader.resetWater()
+        availableKeyImpulse = Self.maximumKeyImpulse
         pendingKeyImpulses.removeAll()
         lastFrame = .silent
         cycleStartedAt = nil
@@ -65,8 +68,8 @@ final class MusicAmbientRenderer {
         let ny = Float(max(0.02, min(0.98, boardPoint.y / Action75.canvas.height)))
         pendingKeyImpulses.append(MusicMetalContext.WaterImpulseGPU(
             normPos: SIMD2(nx, ny),
-            radius: 6.0,
-            strength: Float(1.75 * min(2.0, max(0.3, strength))),
+            radius: 3.8,
+            strength: 0.38 * Float(min(1.4, max(0.3, strength))),
             huePhase: nx * 0.7 + ny * 0.3
         ))
         if pendingKeyImpulses.count > 16 {
@@ -116,10 +119,17 @@ final class MusicAmbientRenderer {
         let activeStyle = currentVisualStyle(for: settings, at: now)
         let react = Float(settings[.musicReactivity])
 
-        // 1. Step Water Pool physics whenever Water Pool is active (or crossfading)
+        // Let one tap make a clear ripple; keys in a chord share the available strength.
+        availableKeyImpulse = min(Self.maximumKeyImpulse, availableKeyImpulse + Float(safeDt) * 1.45)
         if activeStyle == .waterPool {
             var impulses = pendingKeyImpulses
-            pendingKeyImpulses.removeAll()
+            pendingKeyImpulses.removeAll(keepingCapacity: true)
+            let requested = impulses.reduce(Float.zero) { $0 + $1.strength }
+            if requested > availableKeyImpulse {
+                let scale = availableKeyImpulse / requested
+                for i in impulses.indices { impulses[i].strength *= scale }
+            }
+            availableKeyImpulse = max(0, availableKeyImpulse - requested)
 
             if frame.beatTriggered {
                 // Main bass drop crater positioned with stereo balance + slight organic wander
