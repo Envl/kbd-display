@@ -8,7 +8,7 @@ A macOS menu bar app that lights up the VIPI Action75’s 1920 × 720 display as
 
 ## Using the keyboard display
 
-Choose the Action75 from the menu bar while it is in extended mode. Selection is saved by display UUID and restored on reconnect. Choose **Output Off** to release it. The app starts listening for key presses on launch. Grant macOS Input Monitoring access so it can respond while other apps are active.
+Open **Effects… → Setup** for guided connection. Connect the keyboard display, set it to **Extended display** in macOS, and select it under **Output**. You can also select the screen from the menu bar. Selection is saved by display UUID and restored on reconnect. Choose **Output Off** to release it. The app starts listening for key presses on launch. Grant macOS Input Monitoring access so it can respond while other apps are active.
 
 Open **Effects…** to change colors, keyboard lighting, key animations, typing sounds, music visuals, or the dictation glow. Click a key in the settings preview to try an effect. Changes apply immediately. **Pause Effects** suspends playback and **Resume Effects** restores your setup. Opening Effects shows the app in the Dock until the settings window closes. **More** in the sidebar contains restore defaults and quit.
 

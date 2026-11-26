@@ -597,6 +597,7 @@ final class EffectSettingsStore: ObservableObject {
     var onChange: ((EffectConfiguration) -> Void)?
 
     @Published var keyboardMonitoringActive = false
+    @Published var connection = KeyboardConnection()
 
     @Published var isPaused: Bool {
         didSet {

@@ -5,7 +5,7 @@ final class EffectsWindow: NSWindow, NSWindowDelegate {
     private let recorder: ShortcutRecorder
 
     init(store: EffectSettingsStore, updates: AppUpdates, recorder: ShortcutRecorder, settingsBoard: BoardView, beside preview: NSWindow?,
-         requestAccess: @escaping () -> Void) {
+         selectOutput: @escaping (String?) -> Void, requestAccess: @escaping () -> Void) {
         self.recorder = recorder
         super.init(contentRect: NSRect(x: 0, y: 0, width: 780, height: 600),
                    styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
@@ -13,7 +13,8 @@ final class EffectsWindow: NSWindow, NSWindowDelegate {
         isReleasedWhenClosed = false
         delegate = self
         contentView = NSHostingView(rootView: EffectsForm(store: store, updates: updates, recorder: recorder, settingsBoard: settingsBoard,
-            requestAccess: requestAccess))
+            selectOutput: selectOutput, requestAccess: requestAccess,
+            page: store.connection.hasOutput && store.keyboardMonitoringActive ? .appearance : .setup))
         contentMinSize = NSSize(width: 640, height: 400)
         setContentSize(NSSize(width: 780, height: 600))
         if let preview, preview.isVisible, let screen = preview.screen {
@@ -83,11 +84,12 @@ private struct SettingsDisclosure<Content: View>: View {
 }
 
 private enum EffectsPage: String, CaseIterable {
-    case appearance = "Appearance", keys = "Key effects", sound = "Typing sound"
+    case setup = "Setup", appearance = "Appearance", keys = "Key effects", sound = "Typing sound"
     case music = "Music", dictation = "Dictation"
 
     var symbol: String {
         switch self {
+        case .setup: return "cable.connector"
         case .appearance: return "paintpalette"
         case .keys: return "keyboard"
         case .sound: return "speaker.wave.2"
@@ -102,8 +104,9 @@ private struct EffectsForm: View {
     @ObservedObject var updates: AppUpdates
     let recorder: ShortcutRecorder
     let settingsBoard: BoardView
+    let selectOutput: (String?) -> Void
     let requestAccess: () -> Void
-    @State private var page: EffectsPage? = .appearance
+    @State var page: EffectsPage?
     @State private var confirmReset = false
 
     var body: some View {
@@ -139,7 +142,7 @@ private struct EffectsForm: View {
                     }
                     .padding(.horizontal, 22).padding(.vertical, 6)
                 }
-                if !store.keyboardMonitoringActive {
+                if page != .setup && !store.keyboardMonitoringActive {
                     HStack {
                         Label("Keyboard access needed", systemImage: "keyboard")
                         Spacer()
@@ -166,6 +169,10 @@ private struct EffectsForm: View {
                         }
                     }
                     switch page ?? .appearance {
+                    case .setup:
+                        KeyboardSetup(connection: store.connection, monitoring: store.keyboardMonitoringActive,
+                                      paused: store.isPaused, selectOutput: selectOutput, requestAccess: requestAccess,
+                                      customize: { page = .appearance })
                     case .appearance: appearance
                     case .keys: keyEffects
                     case .sound: sound

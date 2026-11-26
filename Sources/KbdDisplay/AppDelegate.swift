@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let settingsBoard = BoardView()
     private let recorder = ShortcutRecorder()
     private lazy var effectsWindow = EffectsWindow(store: effectsStore, updates: updates, recorder: recorder, settingsBoard: settingsBoard, beside: previewWindow,
+        selectOutput: { [weak self] in self?.setOutput($0) },
         requestAccess: { [weak self] in self?.openInputMonitoringSettings() })
     private var previewWindow: NSWindow?
     private var modeControl: NSSegmentedControl?
@@ -262,7 +263,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var exclusiveCapture: Bool { defaults.bool(forKey: "exclusiveCapture") }
 
     @objc private func refresh() {
-        captureError = output.refresh(selection: defaults.string(forKey: "selectedDisplay"), exclusive: exclusiveCapture)
+        let selectedID = defaults.string(forKey: "selectedDisplay")
+        captureError = output.refresh(selection: selectedID, exclusive: exclusiveCapture)
+        let displays = NSScreen.screens.compactMap { screen -> KeyboardConnection.Display? in
+            guard screen.canCapture, let id = screen.persistentID else { return nil }
+            return .init(id: id, name: screen.localizedName)
+        }
+        let connection = KeyboardConnection(displays: displays, selectedID: selectedID,
+                                            hasOutput: output.activeDisplayID != nil, captureFailed: captureError != nil)
+        if connection != effectsStore.connection { effectsStore.connection = connection }
     }
 
     @objc private func wake() {
@@ -352,7 +361,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func selectOutput(_ sender: NSMenuItem) {
-        defaults.set(sender.representedObject as? String, forKey: "selectedDisplay")
+        setOutput(sender.representedObject as? String)
+    }
+
+    private func setOutput(_ id: String?) {
+        defaults.set(id, forKey: "selectedDisplay")
         refresh()
     }
 
